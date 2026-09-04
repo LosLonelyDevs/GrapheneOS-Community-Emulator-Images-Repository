@@ -1,0 +1,73 @@
+# Machine-specific plans and agent state
+data/
+.agents/
+.codex/
+.claude/
+
+# Editors and operating systems
+.idea/
+.vscode/
+.vs/
+*.code-workspace
+*.suo
+*.user
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Local configuration and temporary files
+.grapheneos-community-emulator-avd
+.grapheneos-sdk-emulator-avd
+*.log
+*.pid
+*.tmp
+*.bak
+*.swp
+*~
+local.properties
+.wslconfig
+.cache/
+.gradle/
+__pycache__/
+*.py[cod]
+node_modules/
+coverage/
+dist/
+build/
+
+# Credentials and signing material
+.env
+.env.*
+!.env.example
+.secrets/
+secrets/
+credentials/
+*.jks
+*.keystore
+*.p12
+*.pfx
+*.pem
+*.key
+*.der
+*.cer
+*.crt
+*.p8
+*.p7b
+id_rsa*
+id_ed25519*
+
+# Android/GrapheneOS source and build output
+.repo/
+out/
+sysdir/
+release/
+*.img
+*.zip
+*.zip.part*
+*.7z
+*.tar
+*.tar.gz
+
+# Generated release metadata
+*-SHA256SUMS.txt
+*-JOIN-INSTRUCTIONS.txt

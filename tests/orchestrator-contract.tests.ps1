@@ -1,0 +1,41 @@
+$ErrorActionPreference = 'Stop'
+$path = Join-Path $PSScriptRoot '..\scripts\build-grapheneos-emulator.ps1'
+$source = Get-Content -Raw $path
+
+function Require([bool]$Condition, [string]$Message) {
+  if (-not $Condition) { throw $Message }
+}
+
+Require ($source -match 'build-progress\.ps1') 'orchestrator does not load progress helper'
+Require ($source -match 'function Get-WslBuildSnapshot') 'snapshot function missing'
+Require ($source -match 'function Show-BuildMonitor') 'monitor function missing'
+Require ($source -match '(?s)Start-Process.+wsl\.exe') 'independent wsl.exe launch missing'
+Require ($source -match 'all-logged') 'logged foreground mode not launched'
+Require ($source -notmatch 'setsid') 'unreliable setsid launch still present'
+Require ($source -match 'Show-BuildMonitor -BuildProcess') 'default command does not enter monitor'
+Require ($source -notmatch 'du -sh ~/android/grapheneos') 'status performs an unbounded source-tree scan'
+Require ($source -match 'ConvertTo-WslPath') 'orchestrator does not use the tested path converter'
+Require ($source -match 'function Get-WslHome') 'WSL home resolution function missing'
+Require ($source -notmatch '(?m)^[^#\r\n]*[/\\]home[/\\](?!<user>)[a-z]') 'orchestrator hardcodes a WSL home path'
+Require ($source -match '\$OutputRoot') 'orchestrator output root is not configurable'
+Require ($source -match 'GRAPHENEOS_EMULATOR_ROOT') 'orchestrator output-root environment override missing'
+Require ($source -match '\$GrapheneOsTag') 'GrapheneOS tag parameter missing'
+Require ($source -match 'GRAPHENEOS_TAG') 'GrapheneOS tag environment override or WSL propagation missing'
+Require ($source -match "ValidatePattern\('\^\[0-9\]\{10\}\$'\)") 'GrapheneOS tag format validation missing'
+Require ($source.Contains("'env', `"GRAPHENEOS_TAG=`$GrapheneOsTag`"")) 'selected GrapheneOS tag is not propagated into WSL'
+Require ($source -match 'EXPORT_DIR=\$wslExportDir') 'configured sysdir output is not propagated into WSL'
+Require ($source -match '\$AndroidSdkRoot') 'Android SDK root is not configurable'
+Require ($source -match 'GRAPHENEOS_WSL_DISTRO') 'WSL distro environment override missing'
+Require ($source -notmatch '--\s+wslpath\b') 'orchestrator still crosses the broken wslpath quoting boundary'
+Require ($source -match "ParameterSetName='Finalize'") 'Finalize parameter set missing'
+Require ($source -match 'function Invoke-HeadlessValidation') 'headless validation function missing'
+Require ($source -match 'emulator-5584') 'dedicated validation emulator serial missing'
+Require ($source -match "'-show-kernel'") 'headless validation does not capture guest kernel output'
+Require ($source -match 'Kernel panic - not syncing') 'headless validation does not fail fast on a guest kernel panic'
+Require ($source -match 'function Restore-WslConfig') 'WSL restore function missing'
+Require ($source -match 'function Start-GrapheneOsEmulator') 'visible emulator launch function missing'
+Require ($source -match 'function Invoke-PostBuild') 'shared post-build function missing'
+Require ($source -match 'Invoke-PostBuild -RestoreResources') 'default pipeline does not invoke post-build automation'
+Require ($source -notmatch 'Invoke-PostBuild.+Reclaim') 'post-build pipeline must not reclaim automatically'
+
+Write-Output 'PASS orchestrator contract tests'

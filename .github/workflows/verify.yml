@@ -1,0 +1,30 @@
+name: Verify repository
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test PowerShell helpers
+        shell: pwsh
+        run: |
+          ./tests/build-progress.tests.ps1
+          ./tests/orchestrator-contract.tests.ps1
+          ./tests/repository-contract.tests.ps1
+
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test WSL-side build harness
+        run: bash tests/gos-build-progress.test.sh
+      - name: Test consumer setup and launch scripts
+        run: bash tests/install-scripts.test.sh
