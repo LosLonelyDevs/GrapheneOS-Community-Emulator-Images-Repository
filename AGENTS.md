@@ -77,7 +77,7 @@ The packager includes `install/`, writes a per-file manifest, creates the ZIP, s
 
 ### Build from source
 
-Do not start a multi-hour rebuild for documentation, packaging, or proof-of-concept work. Build only when the user explicitly asks for a new OS build.
+Do not start a multi-hour rebuild for documentation, packaging, or existing-image work. Build only when the user explicitly asks for a new OS build.
 
 From Windows PowerShell:
 
@@ -91,11 +91,13 @@ From Windows PowerShell:
 
 The Windows orchestrator deploys `scripts/gos-build.sh` into Ubuntu WSL, builds in the WSL ext4 filesystem, exports the sysdir, validates it, restores `.wslconfig`, and launches the visible AVD. Build output never belongs under `/mnt/c`.
 
+The manual `.github/workflows/build-emulator.yml` path is for a separately provisioned large Windows x86-64 cloud runner labeled `grapheneos-cloud-builder`. It never runs automatically and never publishes a release. Do not dispatch it without explicit owner authorization for a new multi-hour build, and never assign its custom label to the owner's personal workstation.
+
 ### Create a new image for a current or future GrapheneOS version
 
 Follow `docs/create-new-emulator-image.md` as the human-facing source of truth, then apply this agent checklist:
 
-1. Confirm the owner explicitly requested a new multi-hour OS build. Documentation, packaging, proof-of-concept, and audit requests do not authorize one.
+1. Confirm the owner explicitly requested a new multi-hour OS build. Documentation, packaging, existing-image, and audit requests do not authorize one.
 2. Select a stable ten-digit tag from official GrapheneOS release information. Run `scripts/verify-upstream-tag.ps1 -Tag <tag>` and stop on signature failure.
 3. Inspect `~/android/state/grapheneos_tag.txt` and all phase markers. Resume only when the recorded tag equals the requested tag. Never reuse, rewrite, or delete mismatched or ambiguous retained build state without explicit owner direction; use a separate distro or recoverable archive when possible.
 4. Start with `scripts/build-grapheneos-emulator.ps1 -GrapheneOsTag <tag>`. The orchestrator propagates `GRAPHENEOS_TAG` into WSL. Never remove the tag mismatch guard or skip `repo init` for a new sync.

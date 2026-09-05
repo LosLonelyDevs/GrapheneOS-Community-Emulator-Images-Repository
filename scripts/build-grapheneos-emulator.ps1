@@ -23,6 +23,7 @@ param(
   [string]$OutputRoot = $(if ($env:GRAPHENEOS_EMULATOR_ROOT) { $env:GRAPHENEOS_EMULATOR_ROOT } else { 'C:\Android\grapheneos-emulator' }),
   [ValidatePattern('^[0-9]{10}$')][string]$GrapheneOsTag = $(if ($env:GRAPHENEOS_TAG) { $env:GRAPHENEOS_TAG } else { '2026062800' }),
   [Parameter(ParameterSetName='Start')][switch]$NoConfig,
+  [Parameter(ParameterSetName='Start')][switch]$NoLaunch,
   [Parameter(ParameterSetName='Status')][switch]$Status,
   [Parameter(ParameterSetName='Validate')][switch]$Validate,
   [Parameter(ParameterSetName='Reclaim')][switch]$Reclaim,
@@ -277,7 +278,7 @@ function Start-GrapheneOsEmulator {
 }
 
 function Invoke-PostBuild {
-  param([switch]$RestoreResources)
+  param([switch]$RestoreResources, [switch]$SkipLaunch)
   $validated = $false
   try {
     Invoke-HeadlessValidation
@@ -286,7 +287,11 @@ function Invoke-PostBuild {
     if ($RestoreResources) { Restore-WslConfig }
   }
   if ($validated) {
-    Start-GrapheneOsEmulator
+    if ($SkipLaunch) {
+      Say 'post-build automation: visible emulator launch skipped'
+    } else {
+      Start-GrapheneOsEmulator
+    }
     [IO.File]::WriteAllText((Join-Path $StateDir 'finalize.done'), (Get-Date).ToString('o'))
     Say 'post-build automation: COMPLETE'
   }
@@ -346,4 +351,4 @@ $buildProcess = Start-Process `
   -PassThru
 Say "started build host pid=$($buildProcess.Id); sysdir target: $SysDir"
 Show-BuildMonitor -BuildProcess $buildProcess
-Invoke-PostBuild -RestoreResources:(-not $NoConfig)
+Invoke-PostBuild -RestoreResources:(-not $NoConfig) -SkipLaunch:$NoLaunch

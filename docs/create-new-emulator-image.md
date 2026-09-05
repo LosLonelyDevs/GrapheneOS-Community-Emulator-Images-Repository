@@ -69,6 +69,14 @@ Monitor or resume post-build work without starting another build:
 
 If a future GrapheneOS release changes the product target or required emulator files, stop and update the candidate targets, packaging contract, tests, and documentation together. Never fall back from `system-qemu.img`, `vendor-qemu.img`, or `ramdisk-qemu.img` without proving the replacement boots correctly.
 
+### Optional manual cloud build
+
+The repository includes `.github/workflows/build-emulator.yml` for a manually dispatched build on a dedicated cloud machine. It is intentionally not connected to `push`, `pull_request`, or a schedule.
+
+The runner must be a separately provisioned Windows x86-64 cloud VM carrying the labels `self-hosted`, `Windows`, `X64`, and `grapheneos-cloud-builder`. It needs WSL2 with Ubuntu, hardware virtualization, Android SDK emulator tools, at least 32 GiB RAM, and enough fast storage for the source and build output. Do not assign the `grapheneos-cloud-builder` label to a personal workstation.
+
+From the repository's **Actions** tab, select **Build GrapheneOS emulator image**, choose **Run workflow**, enter the verified ten-digit tag, and run it from `main`. The job verifies the upstream tag, runs the existing build and boot-validation gates without opening a visible emulator, packages the release candidate, and uploads the numbered parts, checksums, and join instructions as a temporary workflow artifact. It does not create a Git tag or GitHub Release.
+
 ## 4. Validate the exact sysdir
 
 Validation must be newer than every packaged sysdir file. It must prove:
@@ -102,10 +110,10 @@ Use the repository's configured Git identity. Do not add AI attribution. A local
 
 ## 7. Package and independently verify
 
-Use the upstream tag in both the metadata and release name. Maintained releases use the `vYYYYMMDD.N` channel described in `project-design.md`; the archive name should still include the exact upstream tag.
+Use the upstream tag in both the metadata and release name. The first release for an upstream build uses the exact ten-digit tag; only a corrected repository-only repackaging of unchanged OS bytes adds an `-rN` suffix.
 
 ```powershell
-$Name = "grapheneos-community-emulator-sdk_phone64_x86_64-$Tag-r1"
+$Name = "grapheneos-community-emulator-sdk_phone64_x86_64-$Tag"
 .\scripts\package-grapheneos-emulator-release.ps1 -GrapheneOsTag $Tag -Name $Name -OutputRoot $OutputRoot
 ```
 

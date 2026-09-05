@@ -6,7 +6,7 @@ Date: 2026-09-05
 
 - Windows + WSL source-build orchestration is complete.
 - QEMU-specific image packaging is complete.
-- The retained proof-of-concept sysdir boots as Android 17 / `sdk_phone64_x86_64-userdebug`.
+- The retained release sysdir boots as Android 17 / `sdk_phone64_x86_64-userdebug`.
 - GrapheneOS and Vanadium packages were observed on the running emulator.
 - The exact boot-tested sysdir has a per-file SHA-256 manifest.
 - GrapheneOS tag `2026062800` and manifest commit `ad69afb5ac59ea130ac092e778b37ae2b7158df7` are recorded and signature-verified.

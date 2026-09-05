@@ -4,7 +4,6 @@
 
 - Project name: **GrapheneOS Community Emulator Images Repository**
 - GitHub repository: `LosLonelyDevs/GrapheneOS-Community-Emulator-Images-Repository`
-- Short description: **Community-built GrapheneOS SDK emulator images.**
 - Short description: `Community-built GrapheneOS SDK emulator images.`
 - Release prefix: `grapheneos-community-emulator-sdk_phone64_x86_64`
 
@@ -30,10 +29,12 @@ The resulting design keeps the expensive build pipeline separate from the small 
 4. `docs/`: provenance, publishing, cleanup, troubleshooting, and design rationale.
 5. GitHub Releases: compiled sysdir parts, checksums, and join instructions. Compiled images never enter Git history.
 
-## Release channels
+## Release naming
 
-- `poc-*`: manually validated proof-of-concept builds. May use an older upstream tag, which must be obvious in the release title and metadata.
-- `vYYYYMMDD.N`: maintained builds from a current stable upstream tag.
+- The first repository release for an upstream build uses the exact ten-digit GrapheneOS tag, such as `2026062800`.
+- Its title and archive name include that same upstream tag.
+- A corrected repository-only repackaging of unchanged OS bytes may append `-r2`, `-r3`, and so on. The release notes must explain the reason.
+- GitHub's prerelease flag may identify an experimental release without changing its tag, title, or archive name.
 
 Every release must identify the upstream tag and manifest commit independently from the repository release version.
 

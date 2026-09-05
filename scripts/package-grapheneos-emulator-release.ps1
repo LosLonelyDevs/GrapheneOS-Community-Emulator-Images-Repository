@@ -251,7 +251,7 @@ foreach ($pair in @{
 }
 
 if (-not $Name) {
-  $Name = "grapheneos-community-emulator-sdk_phone64_x86_64-$GrapheneOsTag-poc1"
+  $Name = "grapheneos-community-emulator-sdk_phone64_x86_64-$GrapheneOsTag"
 }
 if ($Name -notmatch '^[A-Za-z0-9._-]+$') {
   throw 'release name may contain only letters, numbers, dot, underscore, and dash'

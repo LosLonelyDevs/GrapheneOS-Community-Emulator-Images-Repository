@@ -64,6 +64,22 @@ foreach ($requiredText in @(
   Assert-True ($newImageGuide.Contains($requiredText)) "new-image guide missing: $requiredText"
 }
 
+$cloudBuildWorkflow = Read-RepoFile '.github/workflows/build-emulator.yml'
+foreach ($requiredText in @(
+  'workflow_dispatch:',
+  'grapheneos-cloud-builder',
+  'scripts/verify-upstream-tag.ps1',
+  'scripts/build-grapheneos-emulator.ps1',
+  '-NoConfig',
+  '-NoLaunch',
+  'scripts/package-grapheneos-emulator-release.ps1',
+  'actions/upload-artifact@v4'
+)) {
+  Assert-True ($cloudBuildWorkflow.Contains($requiredText)) "cloud build workflow missing: $requiredText"
+}
+Assert-True ($cloudBuildWorkflow -notmatch '(?m)^\s+(push|pull_request|schedule):') 'cloud build workflow must remain manual-only'
+Assert-True ($cloudBuildWorkflow -notmatch '(?i)gh\s+release|softprops/action-gh-release') 'cloud build workflow must not publish releases'
+
 $license = Read-RepoFile 'LICENSE'
 Assert-True ($license.Contains('GNU GENERAL PUBLIC LICENSE')) 'LICENSE is not GNU GPL'
 Assert-True ($license.Contains('Version 3, 29 June 2007')) 'LICENSE is not GNU GPL v3.0'

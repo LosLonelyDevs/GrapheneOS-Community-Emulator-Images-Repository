@@ -1,0 +1,86 @@
+name: Build GrapheneOS emulator image
+
+on:
+  workflow_dispatch:
+    inputs:
+      grapheneos_tag:
+        description: Verified ten-digit GrapheneOS release tag
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: grapheneos-emulator-cloud-build
+  cancel-in-progress: false
+
+jobs:
+  build:
+    if: github.ref == 'refs/heads/main'
+    runs-on: [self-hosted, Windows, X64, grapheneos-cloud-builder]
+    timeout-minutes: 1440
+    env:
+      GRAPHENEOS_TAG: ${{ inputs.grapheneos_tag }}
+      GRAPHENEOS_EMULATOR_ROOT: C:\Android\grapheneos-emulator-${{ inputs.grapheneos_tag }}
+      GRAPHENEOS_WSL_DISTRO: Ubuntu
+
+    steps:
+      - name: Check out the reviewed automation revision
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Check tag and cloud-runner prerequisites
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if ($env:GRAPHENEOS_TAG -notmatch '^[0-9]{10}$') {
+            throw 'grapheneos_tag must be a ten-digit GrapheneOS release tag'
+          }
+          if ([Environment]::Is64BitOperatingSystem -ne $true) {
+            throw 'the cloud builder must run 64-bit Windows'
+          }
+          $memoryGiB = [math]::Floor((Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory / 1GB)
+          if ($memoryGiB -lt 32) {
+            throw "the cloud builder needs at least 32 GiB RAM; detected $memoryGiB GiB"
+          }
+          foreach ($command in 'git.exe', 'wsl.exe') {
+            if (-not (Get-Command $command -ErrorAction SilentlyContinue)) {
+              throw "required command not found: $command"
+            }
+          }
+          $sdk = if ($env:ANDROID_SDK_ROOT) { $env:ANDROID_SDK_ROOT } elseif ($env:ANDROID_HOME) { $env:ANDROID_HOME } else { Join-Path $env:LOCALAPPDATA 'Android\Sdk' }
+          foreach ($tool in 'emulator\emulator.exe', 'platform-tools\adb.exe') {
+            if (-not (Test-Path -LiteralPath (Join-Path $sdk $tool))) {
+              throw "Android SDK tool not found: $tool"
+            }
+          }
+          wsl.exe -d $env:GRAPHENEOS_WSL_DISTRO -- bash -lc 'set -e; command -v repo git python3 ssh-keygen >/dev/null; test "$(uname -m)" = x86_64'
+          if ($LASTEXITCODE -ne 0) {
+            throw 'Ubuntu WSL build prerequisites are missing'
+          }
+
+      - name: Verify the upstream GrapheneOS tag
+        shell: pwsh
+        run: ./scripts/verify-upstream-tag.ps1 -Tag $env:GRAPHENEOS_TAG -OutputRoot $env:GRAPHENEOS_EMULATOR_ROOT
+
+      - name: Build, export, and boot-validate
+        shell: pwsh
+        run: ./scripts/build-grapheneos-emulator.ps1 -GrapheneOsTag $env:GRAPHENEOS_TAG -OutputRoot $env:GRAPHENEOS_EMULATOR_ROOT -Distro $env:GRAPHENEOS_WSL_DISTRO -NoConfig -NoLaunch
+
+      - name: Package the validated release candidate
+        shell: pwsh
+        run: ./scripts/package-grapheneos-emulator-release.ps1 -GrapheneOsTag $env:GRAPHENEOS_TAG -OutputRoot $env:GRAPHENEOS_EMULATOR_ROOT
+
+      - name: Upload release candidate for human review
+        uses: actions/upload-artifact@v4
+        with:
+          name: grapheneos-community-emulator-${{ inputs.grapheneos_tag }}
+          path: |
+            ${{ env.GRAPHENEOS_EMULATOR_ROOT }}\release\*.zip.part*
+            ${{ env.GRAPHENEOS_EMULATOR_ROOT }}\release\*-SHA256SUMS.txt
+            ${{ env.GRAPHENEOS_EMULATOR_ROOT }}\release\*-JOIN-INSTRUCTIONS.txt
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7

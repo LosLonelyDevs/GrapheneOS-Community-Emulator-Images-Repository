@@ -19,7 +19,7 @@ This repository includes:
 > [!NOTE]
 > This is a custom system directory, not a complete AVD or an Android Studio SDK package. You supply a normal x86-64 phone AVD; the launcher uses `-sysdir` to load the custom system files at runtime.
 
-## Proof-of-concept release
+## Current release
 
 The first release intentionally proves the distribution and setup flow before another multi-hour build.
 
@@ -37,7 +37,7 @@ The image booted to `sys.boot_completed=1`, reported the expected target, expose
 
 ## Screenshots
 
-Both screenshots come from a freshly wiped proof-of-concept emulator with no account or personal app data.
+Both screenshots come from a freshly wiped emulator with no account or personal app data.
 
 <div align="center">
   <table>
@@ -67,18 +67,18 @@ You need:
 3. A normal x86-64 phone AVD created in Android Studio Device Manager. Any short name is fine; examples below use `GrapheneOS_Base`.
 4. Roughly 7 GiB free after extracting the joined archive.
 
-Windows is validated. Linux x86-64 and Intel macOS launchers are proof-of-concept support until tested on real hosts.
+Windows is validated. Linux x86-64 and Intel macOS launchers are experimental until tested on real hosts.
 
 ## Download and verify
 
 Download every numbered ZIP part, `SHA256SUMS.txt`, and `JOIN-INSTRUCTIONS.txt` from the GitHub Release.
 
-Use the exact filenames and commands in the downloaded `JOIN-INSTRUCTIONS.txt`. For the proof-of-concept release, the process is:
+Use the exact filenames and commands in the downloaded `JOIN-INSTRUCTIONS.txt`. For release `2026062800`, the process is:
 
 Windows PowerShell:
 
 ```powershell
-$name = 'grapheneos-community-emulator-sdk_phone64_x86_64-2026062800-poc1'
+$name = 'grapheneos-community-emulator-sdk_phone64_x86_64-2026062800'
 Get-FileHash "$name.zip.part1", "$name.zip.part2" -Algorithm SHA256
 cmd /c copy /b "$name.zip.part1+$name.zip.part2" "$name.zip"
 Get-FileHash "$name.zip" -Algorithm SHA256
@@ -87,7 +87,7 @@ Get-FileHash "$name.zip" -Algorithm SHA256
 Linux or macOS:
 
 ```bash
-name=grapheneos-community-emulator-sdk_phone64_x86_64-2026062800-poc1
+name=grapheneos-community-emulator-sdk_phone64_x86_64-2026062800
 sha256sum "$name.zip.part1" "$name.zip.part2" # Linux
 cat "$name.zip.part1" "$name.zip.part2" > "$name.zip"
 sha256sum "$name.zip"
@@ -160,6 +160,8 @@ The default output root is `C:\Android\grapheneos-emulator`. Override it with `-
 
 Maintainers should follow the complete [new-image workflow](docs/create-new-emulator-image.md). It covers choosing and signature-verifying a current or future upstream tag, isolating retained state from older tags, building, validation, repository checks, provenance, packaging, independent checksum verification, privacy review, and the approval boundary before publishing.
 
+A manual [cloud build workflow](.github/workflows/build-emulator.yml) is included for future releases. It never runs on a push, pull request, or schedule and never publishes a GitHub Release. It requires a separately provisioned, sufficiently large Windows x86-64 cloud runner labeled `grapheneos-cloud-builder`, with WSL2, Ubuntu, Android SDK emulator tools, hardware virtualization, and GrapheneOS build dependencies already configured. It builds, validates, packages, and uploads a temporary release candidate for human review.
+
 The Android Emulator needs the QEMU-specific GrapheneOS images:
 
 - `system-qemu.img` packaged as `system.img`
@@ -174,6 +176,7 @@ Generic partition images can panic during first-stage init because they do not c
 - `scripts/`: source build, validation, packaging, and release tooling.
 - `tests/`: unit and contract checks that do not perform a full OS build.
 - `.github/workflows/verify.yml`: fast Windows and Linux checks; never a multi-hour OS build.
+- `.github/workflows/build-emulator.yml`: manual-only build on a dedicated large cloud runner; never runs automatically or publishes a release.
 - `docs/project-design.md`: naming, research, platform policy, and release design.
 - `docs/build-and-share-compiled-grapheneos-emulator.md`: maintainer release guide.
 
@@ -197,11 +200,26 @@ Use a disposable emulator profile, and never store production credentials in it.
 
 ### Project status
 
-- [x] Proof-of-concept image boot-validated on Windows x86-64.
+- [x] Release `2026062800` image boot-validated on Windows x86-64.
 - [x] Linux x86-64 and Intel macOS launch scripts included.
+- [x] Manual future-build workflow for a separately configured large cloud runner.
 - [ ] Linux launcher validated on a real Linux host.
 - [ ] Intel macOS launcher validated on a real Intel Mac.
 - [ ] Native ARM64 image and host support.
+
+## Donations
+
+Building and validating these images eats a lot of CPU time, RAM, storage, and cloud-runner hours. Donations help us keep current GrapheneOS emulator images available and pay for the hardware and hosting needed to build them properly.
+
+<p align="center">
+  <a href="monero:82xbMgjq3gNT6DnqEMpMsd1Xi7D8usxS53imTpmoMtymVqQYrSDY2626AreA4PJtD1JaJMmAuk1bNJvHkLRNieT1CFgiG99">
+    <img src="https://img.shields.io/badge/Donate-Monero-FF6600?style=for-the-badge&logo=monero&logoColor=white" alt="Donate Monero (XMR)">
+  </a>
+  &nbsp;&nbsp;
+  <a href="bitcoin:bc1q7uu9vddheha6n2ef5a2jx5ajmf5hkf5mnsge26">
+    <img src="https://img.shields.io/badge/Donate-Bitcoin-F7931A?style=for-the-badge&logo=bitcoin&logoColor=white" alt="Donate Bitcoin (BTC)">
+  </a>
+</p>
 
 ## License
 

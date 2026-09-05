@@ -66,7 +66,7 @@ C:\Android\grapheneos-emulator\state
 The packager creates a directory and matching ZIP named like:
 
 ```text
-grapheneos-community-emulator-sdk_phone64_x86_64-<tag>-poc1/
+grapheneos-community-emulator-sdk_phone64_x86_64-<tag>/
   BUILD-METADATA.txt
   LICENSE
   README.txt
