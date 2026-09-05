@@ -71,7 +71,7 @@ Windows is validated. Linux x86-64 and Intel macOS launchers are experimental un
 
 ## Download and verify
 
-Download every numbered ZIP part, `SHA256SUMS.txt`, and `JOIN-INSTRUCTIONS.txt` from the GitHub Release.
+Download every numbered ZIP part, `SHA256SUMS.txt`, and `JOIN-INSTRUCTIONS.txt` from the GitHub Release. The release notes also keep the exact join, verification, and extraction commands visible beside the downloads.
 
 Use the exact filenames and commands in the downloaded `JOIN-INSTRUCTIONS.txt`. For release `2026062800`, the process is:
 

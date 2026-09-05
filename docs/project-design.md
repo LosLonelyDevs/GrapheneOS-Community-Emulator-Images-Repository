@@ -43,7 +43,7 @@ Every release must identify the upstream tag and manifest commit independently f
 - `...zip.part1`, `...zip.part2`, and any additional numbered parts.
 - `...-SHA256SUMS.txt` covering the complete ZIP and every part.
 - `...-JOIN-INSTRUCTIONS.txt` with Windows and Unix commands.
-- A release body containing platform support, validation results, provenance, and the development-only warning.
+- A release body containing platform support, validation results, provenance, the development-only warning, and copy-paste commands to verify the parts, join them, verify the complete ZIP, and extract it.
 
 The ZIP contains `sysdir/`, platform setup/launch scripts, `README.txt`, `BUILD-METADATA.txt`, and a per-file sysdir SHA-256 manifest.
 

@@ -59,6 +59,7 @@ foreach ($requiredText in @(
   'retained build state',
   'Run the repository checks',
   'Package and independently verify',
+  'copy-paste commands',
   'Do not push or publish'
 )) {
   Assert-True ($newImageGuide.Contains($requiredText)) "new-image guide missing: $requiredText"

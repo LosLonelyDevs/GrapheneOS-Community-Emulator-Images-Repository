@@ -104,7 +104,7 @@ Follow `docs/create-new-emulator-image.md` as the human-facing source of truth, 
 5. Monitor with `-Status`. After the build, run `-Finalize` or `-Validate`. Any sysdir mutation invalidates prior boot proof and requires validation again.
 6. Run every applicable repository test and parser. Review public content for secrets, identity data, local paths, hostnames, logs, source trees, AVD data, and compiled artifacts. Update the ignored machine journal without exposing it.
 7. Review and commit only explicit public paths so the automation revision is real and clean. Package with `-GrapheneOsTag <tag>` and an upstream-tagged release name. Never use `git add .` for release preparation.
-8. Verify part hashes, reconstruct and verify the ZIP, inspect embedded provenance, and smoke-test the extracted consumer flow. Use only freshly wiped, non-personal screenshots.
+8. Verify part hashes, reconstruct and verify the ZIP, inspect embedded provenance, and smoke-test the extracted consumer flow. Put copy-paste commands for verifying the parts, joining them, verifying the complete ZIP, and extracting it directly in the release notes. Use only freshly wiped, non-personal screenshots.
 9. Stop before any push, tag, GitHub Release, or asset upload. Obtain explicit owner approval for each external publishing action.
 
 ## Architecture

@@ -111,6 +111,7 @@ Commit only source, documentation, tests, and installer scripts. Never commit `s
 Keep the complete ZIP locally for verification; it is normally too large to upload as one asset.
 Consumers verify every downloaded part, join the parts, verify the complete ZIP, then extract it.
 The generated `JOIN-INSTRUCTIONS.txt` contains exact commands for Windows and Unix-like systems.
+Repeat those copy-paste join, verification, and extraction commands directly in the GitHub Release notes so users can see the complete workflow before downloading anything. Keep `JOIN-INSTRUCTIONS.txt` as the offline copy shipped beside the archive parts.
 
 ## User install instructions
 

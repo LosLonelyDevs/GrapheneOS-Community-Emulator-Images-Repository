@@ -134,6 +134,6 @@ Hashes prove the release bytes match the bytes this project validated; they do n
 
 Use only screenshots from a freshly wiped disposable AVD with no accounts, personal apps, notifications, clipboard content, or identifying metadata. Confirm the release contains no host paths, usernames, hostnames, credentials, keys, logs, source trees, or generated AVD data.
 
-The release body must state that the project is independent and unendorsed, development-only, which upstream tag and manifest commit were used, what was validated, which hosts were tested, and how to verify and install the assets. GPL-3.0 applies only to repository-owned material; bundled Android, GrapheneOS, and other third-party components retain their upstream licenses.
+The release body must state that the project is independent and unendorsed, development-only, which upstream tag and manifest commit were used, what was validated, and which hosts were tested. It must also include copy-paste commands for verifying every part, joining the ZIP, verifying the complete ZIP, and extracting it; do not make users download instructions just to understand the process. GPL-3.0 applies only to repository-owned material; bundled Android, GrapheneOS, and other third-party components retain their upstream licenses.
 
 Do not push or publish a Git commit, tag, GitHub Release, or release asset without the repository owner's explicit approval for that external action.
