@@ -505,7 +505,11 @@ function Invoke-HostRestore {
     $stranded = [math]::Round($imageAfter - $df.UsedGB, 1)
     Say ("restore: disk image {0} GB holds {1} GB of data; {2} GB still allocated to the image" -f
       $imageAfter, $df.UsedGB, $stranded)
-    if ($stranded -gt 20) {
+    # Some slack is normal: virtual-disk overhead, filesystem metadata and
+    # blocks that were never zeroed. Only flag a shortfall large relative to
+    # the data actually stored, so a healthy disk does not cry wolf.
+    $tolerance = [math]::Max(20, [math]::Round($df.UsedGB * 0.25, 1))
+    if ($stranded -gt $tolerance) {
       Say 'restore: INCOMPLETE - the host has not got that space back yet. Sparse mode releases blocks lazily.'
       if (-not $CompactImage) {
         Say 'restore: re-run with -Compact from an ELEVATED session to force it:'

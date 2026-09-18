@@ -72,6 +72,7 @@ Require ($source -match 'restore: host volume reclaimed') 'restore does not veri
 Require ($source -match 'function Get-WslDfGB') 'restore cannot compare image size against real filesystem usage'
 Require ($source -match 'still allocated to the image') 'restore does not report blocks stranded inside the disk image'
 Require ($source -match 'restore: INCOMPLETE') 'restore reports success even when the host disk was not returned'
+Require ($source -match '\$tolerance = \[math\]::Max') 'stranded-space check has no tolerance for normal disk-image slack'
 Require ($source -match '(?s)restore: INCOMPLETE.+ELEVATED') 'restore does not tell the user how to finish reclaiming the disk'
 Require ($source -match 'function Merge-WslConfigRestoreState') 'restore state cannot be extended without inventing ownership'
 
