@@ -38,4 +38,47 @@ Require ($source -match 'function Invoke-PostBuild') 'shared post-build function
 Require ($source -match 'Invoke-PostBuild -RestoreResources') 'default pipeline does not invoke post-build automation'
 Require ($source -notmatch 'Invoke-PostBuild.+Reclaim') 'post-build pipeline must not reclaim automatically'
 
+# ---- disk-space precheck ----
+Require ($source -match 'function Assert-FreeSpaceForBuild') 'free-space precheck function missing'
+Require ($source -match 'function Get-WslFreeGB') 'WSL free-space probe missing'
+Require ($source -match 'function Get-HostFreeGB') 'host free-space probe missing'
+Require ($source -match '\$MinFreeGB') 'minimum free space is not configurable'
+Require ($source -match '\$MinFreeResumeGB') 'resume builds do not get their own lower space bar'
+Require ($source -match '\$SkipSpaceCheck') 'no documented bypass for the space precheck'
+Require ($source -match 'function Test-WslSyncComplete') 'space precheck cannot tell a resume from a full build'
+Require ($source -match '(?s)Assert-FreeSpaceForBuild.+Start-Process') 'space precheck does not run before the build launches'
+Require ($source -match 'insufficient disk space') 'space precheck does not fail closed with an explanatory message'
+
+# ---- host power state ----
+Require ($source -match 'function Get-HostStandbyTimeoutAc') 'host sleep-timeout probe missing'
+Require ($source -match 'function Disable-HostSleep') 'build does not disable sleep-on-idle'
+Require ($source -match 'function Restore-HostSleep') 'build cannot restore the prior sleep-on-idle setting'
+Require ($source -match 'StandbyTimeoutAcBefore') 'prior sleep timeout is not recorded for restore'
+Require ($source -match '(?s)Invoke-PostBuild[^#]*?Restore-HostSleep') 'post-build automation does not restore the sleep setting'
+
+# ---- full host restore ----
+Require ($source -match "ParameterSetName='Restore'") 'Restore parameter set missing'
+Require ($source -match 'function Invoke-HostRestore') 'host restore function missing'
+Require ($source -match 'function Get-WslDistroImagePath') 'WSL disk image discovery missing'
+Require ($source -match 'function Compress-WslDiskImage') 'WSL disk compaction helper missing'
+Require ($source -match 'function Test-ScheduledBuildTask') 'restore cannot detect a scheduled build task'
+Require ($source -match 'a GrapheneOS build is still running') 'restore does not refuse to run against a live build'
+Require ($source -match 'restore: DRY RUN only') 'restore is not dry-run by default'
+Require ($source -match 'Invoke-HostRestore -Apply:\$Force') 'restore applies without an explicit -Force'
+Require ($source -match '(?s)function Invoke-HostRestore.+Restore-WslConfig') 'restore does not return the WSL resource allocation'
+Require ($source -match '(?s)function Invoke-HostRestore.+schtasks /delete') 'restore leaves the scheduled build task behind'
+Require ($source -match '(?s)function Invoke-HostRestore.+wsl\.exe --shutdown') 'restore does not shut WSL down to release the allocation'
+Require ($source -match 'restore: host volume reclaimed') 'restore does not verify that disk space actually came back'
+Require ($source -match 'function Get-WslDfGB') 'restore cannot compare image size against real filesystem usage'
+Require ($source -match 'still allocated to the image') 'restore does not report blocks stranded inside the disk image'
+Require ($source -match 'restore: INCOMPLETE') 'restore reports success even when the host disk was not returned'
+Require ($source -match '(?s)restore: INCOMPLETE.+ELEVATED') 'restore does not tell the user how to finish reclaiming the disk'
+Require ($source -match 'function Merge-WslConfigRestoreState') 'restore state cannot be extended without inventing ownership'
+
+# ---- portability: nothing machine-specific may be baked in ----
+Require ($source -notmatch '(?im)[a-z]:\\users\\(?!<)') 'orchestrator hardcodes a Windows user profile path'
+Require ($source -notmatch '(?m)^[^#\r\n]*\\AppData\\Local\\Packages\\') 'orchestrator hardcodes a WSL install location'
+Require ($source -match 'USERPROFILE') 'orchestrator does not resolve the user profile from the environment'
+Require ($source -match 'CurrentVersion\\Lxss') 'WSL disk image is not discovered from the registry'
+
 Write-Output 'PASS orchestrator contract tests'

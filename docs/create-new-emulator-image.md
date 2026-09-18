@@ -43,6 +43,26 @@ Confirm sufficient free space before preserving a large archive. `-Reclaim` dele
 
 ## 3. Build the selected tag
 
+A build temporarily consumes a large amount of disk. Expect roughly 200 GB for the source checkout and another 100–150 GB for `out/`, all of it inside the WSL virtual disk, which grows the backing `.vhdx` on whichever host volume holds it.
+
+The orchestrator refuses to start when that space is not available. The precheck measures free space on both sides — the WSL filesystem and the host volume backing the WSL disk — and fails closed with an explanatory message:
+
+```text
+space: full sync + build needs 300 GB free
+space: WSL filesystem free 702 GB; host volume free 1654 GB
+space: precheck PASS
+```
+
+A resume whose source is already synced only needs room for `out/`, so it is held to a lower bar. Both bars are adjustable, and the check can be bypassed deliberately:
+
+| Switch | Default | Meaning |
+|---|---|---|
+| `-MinFreeGB` | 300 | Required free space for a full sync + build |
+| `-MinFreeResumeGB` | 150 | Required free space when `sync.done` already exists |
+| `-SkipSpaceCheck` | off | Skip the precheck entirely; you own the outcome |
+
+The orchestrator also disables sleep-on-idle for the duration, because a machine that sleeps mid-build kills the build host. The previous timeout is recorded and put back during `-Finalize` or `-Restore`.
+
 Pass the tag explicitly. The environment variable is supported for automation, but the parameter is clearer in a human terminal:
 
 ```powershell
@@ -137,3 +157,50 @@ Use only screenshots from a freshly wiped disposable AVD with no accounts, perso
 The release body must state that the project is independent and unendorsed, development-only, which upstream tag and manifest commit were used, what was validated, and which hosts were tested. It must also include copy-paste commands for verifying every part, joining the ZIP, verifying the complete ZIP, and extracting it; do not make users download instructions just to understand the process. GPL-3.0 applies only to repository-owned material; bundled Android, GrapheneOS, and other third-party components retain their upstream licenses.
 
 Do not push or publish a Git commit, tag, GitHub Release, or release asset without the repository owner's explicit approval for that external action.
+
+## 9. Return the host to its pre-build state
+
+A build borrows a lot of the machine: hundreds of gigabytes of disk, most of the RAM and every CPU thread through a generated `.wslconfig`, a disabled sleep timer, and — when the build is launched from Task Scheduler — a registered task. `-Restore` gives all of it back in one command.
+
+It is a dry run unless you pass `-Force`, so you can always see the plan first:
+
+```powershell
+.\scripts\build-grapheneos-emulator.ps1 -Restore -GrapheneOsTag $Tag -OutputRoot $OutputRoot
+```
+
+```text
+restore: image size before 612.4 GB; host volume free before 1422.7 GB
+restore: plan - restore .wslconfig from the recorded backup
+restore: plan - restore AC sleep-on-idle to 30 min
+restore: plan - delete the WSL build tree at <wsl home>/android (source, out/, markers, logs)
+restore: plan - delete scheduled task GrapheneOS-Build-<tag>
+restore: plan - shut WSL down so the RAM/CPU allocation and freed blocks are released
+restore: DRY RUN only; nothing was changed. Re-run with -Force to apply.
+```
+
+Apply it once the sysdir and any release assets you want to keep are safely outside the WSL filesystem:
+
+```powershell
+.\scripts\build-grapheneos-emulator.ps1 -Restore -Force -GrapheneOsTag $Tag -OutputRoot $OutputRoot
+```
+
+| Switch | Effect |
+|---|---|
+| *(none)* | Dry run: prints the plan and measured sizes, changes nothing |
+| `-Force` | Applies the plan |
+| `-Compact` | Also compacts the WSL disk image; needs an elevated session, and says so instead of failing if it is not elevated |
+| `-DisableSparse` | Also turns sparse mode back off |
+
+What it restores, and how it knows:
+
+- **WSL RAM, CPU, and swap.** The original `.wslconfig` is copied back from the backup recorded in `state\wslconfig-restore.json` at launch, then WSL is shut down so the allocation is released. If there was no `.wslconfig` before the build, the generated one is removed instead.
+- **Sleep-on-idle.** The pre-build AC timeout is recorded in the same file and put back in minutes.
+- **Disk.** The whole WSL build tree — source checkout, `out/`, markers and logs — is deleted, not just `out/`. `-Reclaim` remains the narrower option when you intend to keep the checkout for a rebuild.
+- **Scheduled task.** A `GrapheneOS-Build-<tag>` task is removed if one exists.
+
+It then re-measures the disk image and the host volume and reports how much actually came back, rather than assuming. Sparse mode releases blocks lazily, so if the image has not shrunk the command says so and points at `-Compact`.
+
+Two deliberate limits:
+
+- `-Restore` refuses to run while a build is still running. Let it finish, or stop it first.
+- Sparse mode is left enabled by default. WSL exposes no way to read what the setting was before the build, so the safe choice is to leave a beneficial setting in place rather than guess; `-DisableSparse` turns it off if you want that.

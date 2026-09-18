@@ -86,10 +86,33 @@ From Windows PowerShell:
 .\scripts\build-grapheneos-emulator.ps1 -Status
 .\scripts\build-grapheneos-emulator.ps1 -Finalize
 .\scripts\build-grapheneos-emulator.ps1 -Reclaim
+.\scripts\build-grapheneos-emulator.ps1 -Restore
 .\scripts\build-grapheneos-emulator.ps1 -NoConfig
 ```
 
 The Windows orchestrator deploys `scripts/gos-build.sh` into Ubuntu WSL, builds in the WSL ext4 filesystem, exports the sysdir, validates it, restores `.wslconfig`, and launches the visible AVD. Build output never belongs under `/mnt/c`.
+
+### Host resource safety and restore
+
+A build borrows hundreds of gigabytes of disk, most of the host RAM and every CPU thread, and the sleep-on-idle setting. Treat all of it as borrowed, and give it back.
+
+Before a build, the orchestrator fails closed on insufficient disk. Do not paper over that failure:
+
+- `-MinFreeGB` (default 300) gates a full sync + build; `-MinFreeResumeGB` (default 150) gates a resume where `sync.done` already exists.
+- The precheck measures the WSL filesystem and the host volume backing the WSL disk, discovered from the registry — never assume a drive letter or install path.
+- `-SkipSpaceCheck` exists for deliberate override only. Never pass it to get past a failing precheck without the owner saying so.
+- Sleep-on-idle is disabled for the build and the prior timeout is recorded in `state\wslconfig-restore.json`. A machine that sleeps mid-build kills the build host.
+
+After a build, `-Restore` returns the host to its pre-build state: original `.wslconfig`, prior sleep timeout, the entire WSL build tree deleted, any `GrapheneOS-Build-<tag>` scheduled task removed, WSL shut down, then the disk image and host volume re-measured so the reclaimed space is reported rather than assumed.
+
+- `-Restore` is a dry run that prints its plan; it only acts with `-Force`. Keep it that way.
+- It refuses to run while a build is running.
+- `-Compact` compacts the disk image and needs an elevated session; `-DisableSparse` turns sparse mode back off. Sparse state cannot be read back from WSL, so it is left enabled by default rather than guessed.
+- Use `-Reclaim` instead when the source checkout is intentionally being kept for a rebuild.
+- Move the sysdir and any release assets out of the WSL filesystem before restoring.
+- Never delete `state\wslconfig-restore.json` while a build is in flight; it is the only record of what must be put back.
+
+Never run the orchestrator as an agent-owned background task. A harness that kills its own task under memory pressure takes the hidden WSL build host with it. Launch long builds from Task Scheduler so the process is owned outside the agent, then poll with short-lived `-Status` calls.
 
 The manual `.github/workflows/build-emulator.yml` path is for a separately provisioned large Windows x86-64 cloud runner labeled `grapheneos-cloud-builder`. It never runs automatically and never publishes a release. Do not dispatch it without explicit owner authorization for a new multi-hour build, and never assign its custom label to the owner's personal workstation.
 
@@ -106,6 +129,7 @@ Follow `docs/create-new-emulator-image.md` as the human-facing source of truth, 
 7. Review and commit only explicit public paths so the automation revision is real and clean. Package with `-GrapheneOsTag <tag>` and an upstream-tagged release name. Never use `git add .` for release preparation.
 8. Verify part hashes, reconstruct and verify the ZIP, inspect embedded provenance, and smoke-test the extracted consumer flow. Put copy-paste commands for verifying the parts, joining them, verifying the complete ZIP, and extracting it directly in the release notes. Use only freshly wiped, non-personal screenshots.
 9. Stop before any push, tag, GitHub Release, or asset upload. Obtain explicit owner approval for each external publishing action.
+10. Once the sysdir and release assets are safely outside the WSL filesystem, return the borrowed host resources. Show the owner the `-Restore` dry-run plan first, apply it with `-Force` only after they agree, and report the reclaimed space the command measured.
 
 ## Architecture
 

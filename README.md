@@ -21,7 +21,9 @@ This repository includes:
 
 ## Current release
 
-The first release intentionally proves the distribution and setup flow before another multi-hour build.
+The published release intentionally proves the distribution and setup flow. A newer image is already built and boot-validated, but it is not packaged or published yet, so every download, checksum, and join command in this README still belongs to release `2026062800`.
+
+### Published release `2026062800`
 
 | Field | Value |
 |---|---|
@@ -34,6 +36,25 @@ The first release intentionally proves the distribution and setup flow before an
 | Validated host | Windows x86-64 |
 
 The image booted to `sys.boot_completed=1`, reported the expected target, exposed GrapheneOS and Vanadium packages, and produced no guest kernel panic. The release metadata records the final validation timestamp and automation commit.
+
+### Built and boot-validated, not yet published: `2026091000`
+
+> [!NOTE]
+> An image for GrapheneOS tag `2026091000` has been built and boot-validated, but it has **not** been packaged or published. There is no release ZIP, no numbered parts, no checksums, and no download for it yet. Keep using release `2026062800` until this section says otherwise.
+
+| Field | Value |
+|---|---|
+| Upstream source | GrapheneOS tag `2026091000` |
+| Manifest commit | `ac9f2fdf0badebea2f6ac6c3e93b125aba02116a` |
+| Android | 17 / API 37 |
+| Security patch | 2026-09-01 |
+| Target | `sdk_phone64_x86_64-userdebug` |
+| Architecture | x86-64 |
+| Validated host | Windows x86-64 |
+| Boot validated | 2026-09-18 |
+| Sysdir per-file manifest SHA-256 | `33e2ed8e6bcdafc9676d83f67fa209cac8c217f0470121f998bb9d46d7e7601b` |
+
+The upstream tag signature verified as good against the published ED25519 key for `contact@grapheneos.org`. Validation ran on the dedicated serial `emulator-5584` with `-wipe-data` and `-no-snapshot`: the image booted to `sys.boot_completed=1`, reported `sdk_phone64_x86_64-userdebug`, exposed 17 GrapheneOS and Vanadium packages, and produced no guest kernel panic. The exact boot-tested sysdir is 12 files totalling 6.18 GB.
 
 ## Screenshots
 
@@ -71,7 +92,7 @@ Windows is validated. Linux x86-64 and Intel macOS launchers are experimental un
 
 ## Download and verify
 
-Download every numbered ZIP part, `SHA256SUMS.txt`, and `JOIN-INSTRUCTIONS.txt` from the GitHub Release. The release notes also keep the exact join, verification, and extraction commands visible beside the downloads.
+Download every numbered ZIP part, `SHA256SUMS.txt`, and `JOIN-INSTRUCTIONS.txt` for the published release `2026062800` from the GitHub Release. The release notes also keep the exact join, verification, and extraction commands visible beside the downloads.
 
 Use the exact filenames and commands in the downloaded `JOIN-INSTRUCTIONS.txt`. For release `2026062800`, the process is:
 
@@ -149,8 +170,24 @@ Useful commands:
 .\scripts\build-grapheneos-emulator.ps1 -Status
 .\scripts\build-grapheneos-emulator.ps1 -Validate
 .\scripts\build-grapheneos-emulator.ps1 -Finalize
+.\scripts\build-grapheneos-emulator.ps1 -Restore
 .\scripts\package-grapheneos-emulator-release.ps1
 ```
+
+### Borrowed host resources
+
+A build is expensive and temporary. It needs roughly 200 GB for the source checkout plus 100–150 GB for build output, most of the host RAM, every CPU thread, and a machine that does not fall asleep.
+
+The build refuses to start without the disk space to finish, measuring both the WSL filesystem and the host volume backing the WSL disk. Tune the bar with `-MinFreeGB` (full build, default 300) and `-MinFreeResumeGB` (resume, default 150), or bypass it deliberately with `-SkipSpaceCheck`. Sleep-on-idle is disabled for the duration and the previous timeout is recorded so it can be put back.
+
+`-Restore` gives everything back: the original `.wslconfig`, the prior sleep timeout, the whole WSL build tree, and any scheduled build task. It prints its plan and changes nothing unless you pass `-Force`, refuses to run while a build is in progress, and reports the disk space it actually reclaimed rather than assuming.
+
+```powershell
+.\scripts\build-grapheneos-emulator.ps1 -Restore -GrapheneOsTag $Tag           # dry run
+.\scripts\build-grapheneos-emulator.ps1 -Restore -Force -GrapheneOsTag $Tag    # apply
+```
+
+Add `-Compact` to compact the WSL disk image from an elevated session, or `-DisableSparse` to turn sparse mode back off. Use `-Reclaim` instead when you want to keep the source checkout for a rebuild. See [cleanup](docs/current-status-and-cleanup.md) for the full picture.
 
 The source tree is built inside WSL's Linux filesystem, never `/mnt/c`. Compiled images and release archives live outside the repository and are never committed.
 
@@ -201,6 +238,8 @@ Use a disposable emulator profile, and never store production credentials in it.
 ### Project status
 
 - [x] Release `2026062800` image boot-validated on Windows x86-64.
+- [x] Upstream tag `2026091000` image built and boot-validated on Windows x86-64.
+- [ ] Upstream tag `2026091000` image packaged, checksummed, and published.
 - [x] Linux x86-64 and Intel macOS launch scripts included.
 - [x] Manual future-build workflow for a separately configured large cloud runner.
 - [ ] Linux launcher validated on a real Linux host.

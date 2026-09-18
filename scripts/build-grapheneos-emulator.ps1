@@ -22,12 +22,19 @@ param(
   [string]$AndroidSdkRoot = $(if ($env:ANDROID_SDK_ROOT) { $env:ANDROID_SDK_ROOT } elseif ($env:ANDROID_HOME) { $env:ANDROID_HOME } else { Join-Path $env:LOCALAPPDATA 'Android\Sdk' }),
   [string]$OutputRoot = $(if ($env:GRAPHENEOS_EMULATOR_ROOT) { $env:GRAPHENEOS_EMULATOR_ROOT } else { 'C:\Android\grapheneos-emulator' }),
   [ValidatePattern('^[0-9]{10}$')][string]$GrapheneOsTag = $(if ($env:GRAPHENEOS_TAG) { $env:GRAPHENEOS_TAG } else { '2026062800' }),
+  [Parameter(ParameterSetName='Start')][int]$MinFreeGB = 300,
+  [Parameter(ParameterSetName='Start')][int]$MinFreeResumeGB = 150,
+  [Parameter(ParameterSetName='Start')][switch]$SkipSpaceCheck,
   [Parameter(ParameterSetName='Start')][switch]$NoConfig,
   [Parameter(ParameterSetName='Start')][switch]$NoLaunch,
   [Parameter(ParameterSetName='Status')][switch]$Status,
   [Parameter(ParameterSetName='Validate')][switch]$Validate,
   [Parameter(ParameterSetName='Reclaim')][switch]$Reclaim,
-  [Parameter(ParameterSetName='Finalize')][switch]$Finalize
+  [Parameter(ParameterSetName='Finalize')][switch]$Finalize,
+  [Parameter(ParameterSetName='Restore')][switch]$Restore,
+  [Parameter(ParameterSetName='Restore')][switch]$Force,
+  [Parameter(ParameterSetName='Restore')][switch]$Compact,
+  [Parameter(ParameterSetName='Restore')][switch]$DisableSparse
 )
 . (Join-Path $PSScriptRoot 'build-progress.ps1')
 
@@ -238,9 +245,279 @@ function Invoke-HeadlessValidation {
 }
 
 function Save-WslConfigRestoreState {
-  param([string]$ConfigPath, [bool]$HadOriginal, [string]$BackupPath)
-  $state = [ordered]@{ ConfigPath=$ConfigPath; HadOriginal=$HadOriginal; BackupPath=$BackupPath; Created=(Get-Date).ToString('o') }
+  param(
+    [string]$ConfigPath,
+    [bool]$HadOriginal,
+    [string]$BackupPath,
+    $StandbyTimeoutAcBefore = $null,
+    [bool]$SparseEnabledByBuild = $false
+  )
+  $state = [ordered]@{
+    ConfigPath             = $ConfigPath
+    HadOriginal            = $HadOriginal
+    BackupPath             = $BackupPath
+    StandbyTimeoutAcBefore = $StandbyTimeoutAcBefore
+    SparseEnabledByBuild   = $SparseEnabledByBuild
+    Created                = (Get-Date).ToString('o')
+  }
   [IO.File]::WriteAllText($WslRestoreState, ($state | ConvertTo-Json -Compress))
+}
+
+function Get-WslConfigRestoreState {
+  if (-not (Test-Path $WslRestoreState)) { return $null }
+  try { return (Get-Content -Raw $WslRestoreState | ConvertFrom-Json) } catch { return $null }
+}
+
+function Merge-WslConfigRestoreState {
+  # Adds fields to an existing restore state without inventing one, so a
+  # -NoConfig resume never claims ownership of a .wslconfig it did not write.
+  param([hashtable]$Fields)
+  $state = Get-WslConfigRestoreState
+  if (-not $state) { return $false }
+  foreach ($name in $Fields.Keys) {
+    $state | Add-Member -NotePropertyName $name -NotePropertyValue $Fields[$name] -Force
+  }
+  [IO.File]::WriteAllText($WslRestoreState, ($state | ConvertTo-Json -Compress))
+  return $true
+}
+
+# ---- host resource accounting (no hardcoded volumes, profiles, or install paths) ----
+
+function Get-WslDistroImagePath {
+  # Resolve the distro's backing virtual disk from the WSL registry rather than
+  # assuming any particular install location.
+  $lxss = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Lxss'
+  if (-not (Test-Path $lxss)) { return $null }
+  foreach ($key in (Get-ChildItem $lxss -ErrorAction SilentlyContinue)) {
+    $props = Get-ItemProperty -LiteralPath $key.PSPath -ErrorAction SilentlyContinue
+    if (-not $props -or $props.DistributionName -ne $Distro) { continue }
+    $base = ($props.BasePath -replace '^\\\\\?\\', '')
+    if (-not $base -or -not (Test-Path -LiteralPath $base)) { continue }
+    $image = Get-ChildItem -LiteralPath $base -Filter '*.vhdx' -ErrorAction SilentlyContinue |
+      Sort-Object Length -Descending | Select-Object -First 1
+    if ($image) { return $image.FullName }
+  }
+  return $null
+}
+
+function Get-WslImageSizeGB {
+  $image = Get-WslDistroImagePath
+  if (-not $image -or -not (Test-Path -LiteralPath $image)) { return $null }
+  return [math]::Round((Get-Item -LiteralPath $image).Length / 1GB, 1)
+}
+
+function Get-HostFreeGB {
+  param([string]$PathOnVolume)
+  $qualifier = $null
+  foreach ($candidate in @($PathOnVolume, $OutputRoot, $env:USERPROFILE)) {
+    if (-not $candidate) { continue }
+    try { $qualifier = Split-Path -Qualifier $candidate -ErrorAction Stop } catch { $qualifier = $null }
+    if ($qualifier) { break }
+  }
+  if (-not $qualifier) { return $null }
+  $drive = Get-PSDrive -Name $qualifier.TrimEnd(':') -ErrorAction SilentlyContinue
+  if (-not $drive) { return $null }
+  return [math]::Round($drive.Free / 1GB, 1)
+}
+
+function Get-WslDfGB {
+  # Returns @{ UsedGB; FreeGB } for the filesystem holding the WSL home.
+  $lines = @(wsl.exe -d $Distro -- sh -c 'df -Pk "$HOME"')
+  if ($LASTEXITCODE -ne 0 -or $lines.Count -lt 2) { return $null }
+  $fields = @(($lines[-1] -split '\s+') | Where-Object { $_ })
+  if ($fields.Count -lt 4) { return $null }
+  return @{
+    UsedGB = [math]::Round(([double]$fields[2]) / 1MB, 1)
+    FreeGB = [math]::Round(([double]$fields[3]) / 1MB, 1)
+  }
+}
+
+function Get-WslFreeGB {
+  $df = Get-WslDfGB
+  if (-not $df) { return $null }
+  return $df.FreeGB
+}
+
+function Test-WslSyncComplete {
+  wsl.exe -d $Distro -- test -f "$(Get-WslHome)/android/state/sync.done" *> $null
+  return ($LASTEXITCODE -eq 0)
+}
+
+function Assert-FreeSpaceForBuild {
+  if ($SkipSpaceCheck) { Say 'space: precheck skipped by request (-SkipSpaceCheck)'; return }
+  $resuming = Test-WslSyncComplete
+  $required = if ($resuming) { $MinFreeResumeGB } else { $MinFreeGB }
+  $stage    = if ($resuming) { 'resume (source already synced)' } else { 'full sync + build' }
+  $wslFree  = Get-WslFreeGB
+  $image    = Get-WslDistroImagePath
+  $hostFree = Get-HostFreeGB -PathOnVolume $image
+
+  Say ("space: {0} needs {1} GB free" -f $stage, $required)
+  Say ("space: WSL filesystem free {0}; host volume free {1}" -f
+    $(if ($null -ne $wslFree) { "$wslFree GB" } else { 'unknown' }),
+    $(if ($null -ne $hostFree) { "$hostFree GB" } else { 'unknown' }))
+
+  $problems = @()
+  if ($null -eq $wslFree)  { Say 'space: warn: could not read WSL free space' }
+  elseif ($wslFree -lt $required) { $problems += "the WSL filesystem has $wslFree GB free but needs $required GB" }
+  if ($null -eq $hostFree) { Say 'space: warn: could not read host free space' }
+  elseif ($hostFree -lt $required) { $problems += "the host volume backing the WSL disk has $hostFree GB free but needs $required GB" }
+
+  if ($problems.Count) {
+    throw ("insufficient disk space for a GrapheneOS build: " + ($problems -join '; ') +
+      ". Free space and retry, lower the bar with -MinFreeGB/-MinFreeResumeGB, or bypass with -SkipSpaceCheck.")
+  }
+  Say 'space: precheck PASS'
+}
+
+# ---- host power state (the build dies if the machine sleeps) ----
+
+function Get-HostStandbyTimeoutAc {
+  $lines = @(& powercfg /q SCHEME_CURRENT SUB_SLEEP STANDBYIDLE 2>$null)
+  $hit = $lines | Select-String -Pattern 'Current AC Power Setting Index:\s*(0x[0-9a-fA-F]+)' | Select-Object -First 1
+  if (-not $hit) { return $null }
+  return [Convert]::ToInt32($hit.Matches[0].Groups[1].Value, 16)
+}
+
+function Disable-HostSleep {
+  $before = Get-HostStandbyTimeoutAc
+  if ($null -eq $before) { Say 'power: warn: could not read the AC sleep timeout; leaving it alone'; return $null }
+  if ($before -eq 0) { Say 'power: AC sleep-on-idle already disabled'; return $before }
+  & powercfg /change standby-timeout-ac 0 | Out-Null
+  Say "power: AC sleep-on-idle disabled for the build (was $([int][math]::Round($before / 60)) min)"
+  return $before
+}
+
+function Restore-HostSleep {
+  param($PreviousSeconds)
+  if ($null -eq $PreviousSeconds) { Say 'power: no prior AC sleep timeout recorded; leaving it as is'; return }
+  $minutes = [int][math]::Round(([double]$PreviousSeconds) / 60)
+  & powercfg /change standby-timeout-ac $minutes | Out-Null
+  Say "power: AC sleep-on-idle restored to $minutes min"
+}
+
+# ---- full host restore ----
+
+function Test-ScheduledBuildTask {
+  param([string]$Name)
+  & schtasks /query /tn $Name *> $null
+  return ($LASTEXITCODE -eq 0)
+}
+
+function Compress-WslDiskImage {
+  param([string]$ImagePath)
+  if (-not $ImagePath) { Say 'restore: no WSL disk image found; skipping compaction'; return }
+  $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
+  $elevated = ([Security.Principal.WindowsPrincipal]$identity).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+  if (-not $elevated) {
+    Say 'restore: image compaction needs an elevated session; skipping'
+    Say "restore: to compact manually, run diskpart as administrator: select vdisk file=`"$ImagePath`" / attach vdisk readonly / compact vdisk / detach vdisk"
+    return
+  }
+  $script = @("select vdisk file=`"$ImagePath`"", 'attach vdisk readonly', 'compact vdisk', 'detach vdisk', 'exit') -join "`r`n"
+  $scriptPath = Join-Path ([IO.Path]::GetTempPath()) ("wsl-compact-$([guid]::NewGuid().ToString('N')).txt")
+  try {
+    [IO.File]::WriteAllText($scriptPath, $script)
+    & diskpart /s $scriptPath | Out-Null
+    Say 'restore: WSL disk image compacted'
+  } catch {
+    Say "restore: warn: compaction failed ($_)"
+  } finally {
+    Remove-Item -LiteralPath $scriptPath -Force -ErrorAction SilentlyContinue
+  }
+}
+
+function Invoke-HostRestore {
+  param([switch]$Apply, [switch]$CompactImage, [switch]$TurnOffSparse)
+
+  if (Test-WslBuildRunning) {
+    throw 'a GrapheneOS build is still running; let it finish or stop it before restoring the host'
+  }
+
+  $state       = Get-WslConfigRestoreState
+  $wslHomePath = Get-WslHome
+  $buildRoot   = "$wslHomePath/android"
+  $image       = Get-WslDistroImagePath
+  $imageBefore = Get-WslImageSizeGB
+  $hostBefore  = Get-HostFreeGB -PathOnVolume $image
+  $taskName    = "GrapheneOS-Build-$GrapheneOsTag"
+  $taskPresent = Test-ScheduledBuildTask -Name $taskName
+
+  $plan = @()
+  if ($state -and $state.HadOriginal) { $plan += "restore .wslconfig from the recorded backup" }
+  elseif ($state) { $plan += 'remove the generated .wslconfig' }
+  else { $plan += 'no .wslconfig restore state found; skip .wslconfig restore' }
+  if ($state -and $null -ne $state.StandbyTimeoutAcBefore) {
+    $plan += "restore AC sleep-on-idle to $([int][math]::Round(([double]$state.StandbyTimeoutAcBefore) / 60)) min"
+  }
+  $plan += "delete the WSL build tree at $buildRoot (source, out/, markers, logs)"
+  if ($taskPresent) { $plan += "delete scheduled task $taskName" }
+  if ($TurnOffSparse) { $plan += 'disable sparse mode on the WSL disk' }
+  if ($CompactImage) { $plan += 'compact the WSL disk image' }
+  $plan += 'shut WSL down so the RAM/CPU allocation and freed blocks are released'
+
+  Say ("restore: WSL disk image {0}" -f $(if ($image) { $image } else { '<not found>' }))
+  Say ("restore: image size before {0}; host volume free before {1}" -f
+    $(if ($null -ne $imageBefore) { "$imageBefore GB" } else { 'unknown' }),
+    $(if ($null -ne $hostBefore) { "$hostBefore GB" } else { 'unknown' }))
+  foreach ($step in $plan) { Say "restore: plan - $step" }
+
+  if (-not $Apply) {
+    Say 'restore: DRY RUN only; nothing was changed. Re-run with -Force to apply.'
+    return
+  }
+
+  Restore-WslConfig
+  if ($state -and $null -ne $state.StandbyTimeoutAcBefore) { Restore-HostSleep -PreviousSeconds $state.StandbyTimeoutAcBefore }
+
+  Say "restore: deleting the WSL build tree at $buildRoot"
+  wsl.exe -d $Distro -- rm -rf "$buildRoot"
+  if ($LASTEXITCODE -ne 0) { Say 'restore: warn: could not fully delete the WSL build tree' }
+
+  if ($taskPresent) {
+    & schtasks /delete /tn $taskName /f *> $null
+    Say "restore: scheduled task $taskName deleted"
+  }
+
+  if ($TurnOffSparse) {
+    try { wsl.exe --manage $Distro --set-sparse false | Out-Null; Say 'restore: sparse mode disabled' }
+    catch { Say "restore: warn: could not disable sparse mode ($_)" }
+  }
+
+  wsl.exe --shutdown
+  Say 'restore: WSL shut down'
+
+  if ($CompactImage) { Compress-WslDiskImage -ImagePath $image }
+
+  $imageAfter = Get-WslImageSizeGB
+  $hostAfter  = Get-HostFreeGB -PathOnVolume $image
+  Say ("restore: image size after {0}; host volume free after {1}" -f
+    $(if ($null -ne $imageAfter) { "$imageAfter GB" } else { 'unknown' }),
+    $(if ($null -ne $hostAfter) { "$hostAfter GB" } else { 'unknown' }))
+  if ($null -ne $hostBefore -and $null -ne $hostAfter) {
+    Say ("restore: host volume reclaimed {0} GB" -f [math]::Round($hostAfter - $hostBefore, 1))
+  }
+  # A shrinking image is not proof the space came back. Compare what the image
+  # still occupies on the host against what the filesystem inside it actually
+  # uses: the difference is allocated-but-unused blocks sparse has not released.
+  $df = Get-WslDfGB
+  if ($null -ne $imageAfter -and $df) {
+    $stranded = [math]::Round($imageAfter - $df.UsedGB, 1)
+    Say ("restore: disk image {0} GB holds {1} GB of data; {2} GB still allocated to the image" -f
+      $imageAfter, $df.UsedGB, $stranded)
+    if ($stranded -gt 20) {
+      Say 'restore: INCOMPLETE - the host has not got that space back yet. Sparse mode releases blocks lazily.'
+      if (-not $CompactImage) {
+        Say 'restore: re-run with -Compact from an ELEVATED session to force it:'
+        Say ("restore:   .\scripts\build-grapheneos-emulator.ps1 -Restore -Force -Compact -GrapheneOsTag {0} -OutputRoot {1}" -f $GrapheneOsTag, $OutputRoot)
+      } else {
+        Say 'restore: compaction ran but space is still held; check that no process has the disk image open.'
+      }
+    } else {
+      Say 'restore: host disk fully returned'
+    }
+  }
+  Say 'restore: COMPLETE'
 }
 
 function Restore-WslConfig {
@@ -280,11 +557,17 @@ function Start-GrapheneOsEmulator {
 function Invoke-PostBuild {
   param([switch]$RestoreResources, [switch]$SkipLaunch)
   $validated = $false
+  $restoreState = Get-WslConfigRestoreState
   try {
     Invoke-HeadlessValidation
     $validated = $true
   } finally {
-    if ($RestoreResources) { Restore-WslConfig }
+    if ($RestoreResources) {
+      Restore-WslConfig
+      if ($restoreState -and $null -ne $restoreState.StandbyTimeoutAcBefore) {
+        Restore-HostSleep -PreviousSeconds $restoreState.StandbyTimeoutAcBefore
+      }
+    }
   }
   if ($validated) {
     if ($SkipLaunch) {
@@ -299,6 +582,12 @@ function Invoke-PostBuild {
 
 if ($Validate) { Invoke-HeadlessValidation; return }
 if ($Finalize) { Invoke-PostBuild -RestoreResources; return }
+
+# ---- Restore: return the host to its pre-build state ----
+if ($Restore) {
+  Invoke-HostRestore -Apply:$Force -CompactImage:$Compact -TurnOffSparse:$DisableSparse
+  return
+}
 
 # ---- Reclaim ----
 if($Reclaim){
@@ -326,6 +615,9 @@ wsl.exe -d $Distro -- install -D -m 0755 -- $wslBuildScript "$(Get-WslHome)/andr
 if ($LASTEXITCODE -ne 0) { throw 'could not deploy gos-build.sh into WSL' }
 Say 'deployed current gos-build.sh'
 
+Assert-FreeSpaceForBuild
+$standbyBefore = Disable-HostSleep
+
 if(-not $NoConfig){
   $cfg = "$env:USERPROFILE\.wslconfig"
   $hadOriginalConfig = Test-Path $cfg
@@ -335,13 +627,21 @@ if(-not $NoConfig){
     Copy-Item $cfg $backupPath -Force
     Say "backed up .wslconfig -> $backupPath"
   }
-  Save-WslConfigRestoreState -ConfigPath $cfg -HadOriginal $hadOriginalConfig -BackupPath $backupPath
+  Save-WslConfigRestoreState -ConfigPath $cfg -HadOriginal $hadOriginalConfig -BackupPath $backupPath -StandbyTimeoutAcBefore $standbyBefore
   $body = "[wsl2]`nnestedVirtualization=false`nlocalhostForwarding=true`nmemory=${MemoryGB}GB`nprocessors=24`nswap=${SwapGB}GB`n"
   [IO.File]::WriteAllText($cfg, $body)
   Say "wrote .wslconfig (memory=${MemoryGB}GB, swap=${SwapGB}GB)"
   wsl.exe --shutdown; Say "wsl --shutdown"; Start-Sleep -Seconds 6
-  try { wsl.exe --manage $Distro --set-sparse true | Out-Null; Say "sparse mode enabled (reversible disk)" }
+  try {
+    wsl.exe --manage $Distro --set-sparse true | Out-Null
+    Say "sparse mode enabled (reversible disk)"
+    Merge-WslConfigRestoreState -Fields @{ SparseEnabledByBuild = $true } | Out-Null
+  }
   catch { Say "warn: could not enable sparse mode ($_)" }
+} else {
+  if (-not (Merge-WslConfigRestoreState -Fields @{ StandbyTimeoutAcBefore = $standbyBefore })) {
+    Say 'power: no restore state exists to record the prior sleep timeout into; restore it by hand'
+  }
 }
 Say "launching independent hidden WSL build process for GrapheneOS tag $GrapheneOsTag"
 $buildProcess = Start-Process `
