@@ -10,9 +10,9 @@ Date: 2026-09-18
 - GrapheneOS and Vanadium packages were observed on the running emulator, and the emulator produced no guest kernel panic.
 - The exact boot-tested sysdir is 12 files totalling 6.18 GB and has a per-file SHA-256 manifest, itself hashing to `33e2ed8e6bcdafc9676d83f67fa209cac8c217f0470121f998bb9d46d7e7601b`.
 - GrapheneOS tag `2026091000` and manifest commit `ac9f2fdf0badebea2f6ac6c3e93b125aba02116a` are recorded and signature-verified against the published ED25519 key for `contact@grapheneos.org`.
-- The `2026091000` image has not been packaged: no release ZIP, numbered parts, checksums, or join instructions exist for it yet.
-- For the earlier `2026062800` build, a local release ZIP, numbered parts, checksums, provenance, validation report, and join instructions were generated and independently checked.
-- The repository and release remain unpublished until the owner explicitly approves a push and upload.
+- The `2026091000` image is packaged and published as the current release: a split ZIP, checksums, provenance, validation report, and join instructions were generated, then independently verified by recomputing every digest and proving a streamed rejoin of the numbered parts reproduces the complete ZIP hash exactly.
+- The earlier `2026062800` release remains available and went through the same verification.
+- Publishing happened only after the owner explicitly approved the push and upload. Every future push, tag, release, and asset upload needs the same explicit approval.
 
 Machine-specific build history, storage locations, host configuration, and cleanup measurements belong in the ignored `data/` journal—not this public document.
 

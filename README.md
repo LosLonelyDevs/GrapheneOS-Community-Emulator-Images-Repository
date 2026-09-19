@@ -21,9 +21,34 @@ This repository includes:
 
 ## Current release
 
-The published release intentionally proves the distribution and setup flow. A newer image is already built and boot-validated, but it is not packaged or published yet, so every download, checksum, and join command in this README still belongs to release `2026062800`.
+The current release is `2026091000`. The earlier `2026062800` release remains available.
 
-### Published release `2026062800`
+### Current release `2026091000`
+
+| Field | Value |
+|---|---|
+| Upstream source | GrapheneOS tag `2026091000` |
+| Manifest commit | `ac9f2fdf0badebea2f6ac6c3e93b125aba02116a` |
+| Android | 17 / API 37 |
+| Security patch | 2026-09-01 |
+| Build ID | `CP2A.260605.016` |
+| Target | `sdk_phone64_x86_64-userdebug` |
+| Architecture | x86-64 |
+| Validated host | Windows x86-64 |
+| Boot validated | 2026-09-18 |
+| Sysdir per-file manifest SHA-256 | `33e2ed8e6bcdafc9676d83f67fa209cac8c217f0470121f998bb9d46d7e7601b` |
+
+The upstream tag signature verified as good against the published ED25519 key for `contact@grapheneos.org`. Validation ran on the dedicated serial `emulator-5584` with `-wipe-data` and `-no-snapshot`: the image booted to `sys.boot_completed=1`, reported `sdk_phone64_x86_64-userdebug`, exposed 17 GrapheneOS and Vanadium packages, and produced no guest kernel panic. The exact boot-tested sysdir is 12 files totalling 6.18 GB.
+
+Release assets and their SHA-256 digests:
+
+```
+96f8bc6d045ebf23e96f5ac7a3a30f50aef267dd6cca0070b25a8b3717dcee16  grapheneos-community-emulator-sdk_phone64_x86_64-2026091000.zip
+337d29c8ad978d833072ed16afbdbc7664b949a60857948502cc777f862b2eee  grapheneos-community-emulator-sdk_phone64_x86_64-2026091000.zip.part1
+202b3867f8aa3dabf8f7bbd155e58ecb2e0718fc7b5ab8eb3eb334d7ac0603f6  grapheneos-community-emulator-sdk_phone64_x86_64-2026091000.zip.part2
+```
+
+### Previous release `2026062800`
 
 | Field | Value |
 |---|---|
@@ -36,25 +61,6 @@ The published release intentionally proves the distribution and setup flow. A ne
 | Validated host | Windows x86-64 |
 
 The image booted to `sys.boot_completed=1`, reported the expected target, exposed GrapheneOS and Vanadium packages, and produced no guest kernel panic. The release metadata records the final validation timestamp and automation commit.
-
-### Built and boot-validated, not yet published: `2026091000`
-
-> [!NOTE]
-> An image for GrapheneOS tag `2026091000` has been built and boot-validated, but it has **not** been packaged or published. There is no release ZIP, no numbered parts, no checksums, and no download for it yet. Keep using release `2026062800` until this section says otherwise.
-
-| Field | Value |
-|---|---|
-| Upstream source | GrapheneOS tag `2026091000` |
-| Manifest commit | `ac9f2fdf0badebea2f6ac6c3e93b125aba02116a` |
-| Android | 17 / API 37 |
-| Security patch | 2026-09-01 |
-| Target | `sdk_phone64_x86_64-userdebug` |
-| Architecture | x86-64 |
-| Validated host | Windows x86-64 |
-| Boot validated | 2026-09-18 |
-| Sysdir per-file manifest SHA-256 | `33e2ed8e6bcdafc9676d83f67fa209cac8c217f0470121f998bb9d46d7e7601b` |
-
-The upstream tag signature verified as good against the published ED25519 key for `contact@grapheneos.org`. Validation ran on the dedicated serial `emulator-5584` with `-wipe-data` and `-no-snapshot`: the image booted to `sys.boot_completed=1`, reported `sdk_phone64_x86_64-userdebug`, exposed 17 GrapheneOS and Vanadium packages, and produced no guest kernel panic. The exact boot-tested sysdir is 12 files totalling 6.18 GB.
 
 ## Screenshots
 
@@ -92,14 +98,14 @@ Windows is validated. Linux x86-64 and Intel macOS launchers are experimental un
 
 ## Download and verify
 
-Download every numbered ZIP part, `SHA256SUMS.txt`, and `JOIN-INSTRUCTIONS.txt` for the published release `2026062800` from the GitHub Release. The release notes also keep the exact join, verification, and extraction commands visible beside the downloads.
+Download every numbered ZIP part, `SHA256SUMS.txt`, and `JOIN-INSTRUCTIONS.txt` for the release you want from the GitHub Release page. The release notes also keep the exact join, verification, and extraction commands visible beside the downloads.
 
-Use the exact filenames and commands in the downloaded `JOIN-INSTRUCTIONS.txt`. For release `2026062800`, the process is:
+Use the exact filenames and commands in the downloaded `JOIN-INSTRUCTIONS.txt`. For the current release `2026091000`, the process is:
 
 Windows PowerShell:
 
 ```powershell
-$name = 'grapheneos-community-emulator-sdk_phone64_x86_64-2026062800'
+$name = 'grapheneos-community-emulator-sdk_phone64_x86_64-2026091000'
 Get-FileHash "$name.zip.part1", "$name.zip.part2" -Algorithm SHA256
 cmd /c copy /b "$name.zip.part1+$name.zip.part2" "$name.zip"
 Get-FileHash "$name.zip" -Algorithm SHA256
@@ -108,7 +114,7 @@ Get-FileHash "$name.zip" -Algorithm SHA256
 Linux or macOS:
 
 ```bash
-name=grapheneos-community-emulator-sdk_phone64_x86_64-2026062800
+name=grapheneos-community-emulator-sdk_phone64_x86_64-2026091000
 sha256sum "$name.zip.part1" "$name.zip.part2" # Linux
 cat "$name.zip.part1" "$name.zip.part2" > "$name.zip"
 sha256sum "$name.zip"
@@ -239,7 +245,7 @@ Use a disposable emulator profile, and never store production credentials in it.
 
 - [x] Release `2026062800` image boot-validated on Windows x86-64.
 - [x] Upstream tag `2026091000` image built and boot-validated on Windows x86-64.
-- [ ] Upstream tag `2026091000` image packaged, checksummed, and published.
+- [x] Upstream tag `2026091000` image packaged, checksummed, and published.
 - [x] Linux x86-64 and Intel macOS launch scripts included.
 - [x] Manual future-build workflow for a separately configured large cloud runner.
 - [ ] Linux launcher validated on a real Linux host.
