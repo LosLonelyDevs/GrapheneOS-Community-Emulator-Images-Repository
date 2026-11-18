@@ -111,16 +111,25 @@ cmd /c copy /b "$name.zip.part1+$name.zip.part2" "$name.zip"
 Get-FileHash "$name.zip" -Algorithm SHA256
 ```
 
-Linux or macOS:
+Linux:
 
 ```bash
 name=grapheneos-community-emulator-sdk_phone64_x86_64-2026091000
-sha256sum "$name.zip.part1" "$name.zip.part2" # Linux
+sha256sum "$name.zip.part1" "$name.zip.part2"
 cat "$name.zip.part1" "$name.zip.part2" > "$name.zip"
 sha256sum "$name.zip"
 ```
 
-On macOS, use `shasum -a 256` to compare hashes manually because `sha256sum` is not installed by default. After joining, verify the complete ZIP hash listed in `SHA256SUMS.txt`, then extract it.
+macOS:
+
+```bash
+name=grapheneos-community-emulator-sdk_phone64_x86_64-2026091000
+shasum -a 256 "$name.zip.part1" "$name.zip.part2"
+cat "$name.zip.part1" "$name.zip.part2" > "$name.zip"
+shasum -a 256 "$name.zip"
+```
+
+Compare each part's hash with its entry in `SHA256SUMS.txt` before joining the parts. Extract the joined ZIP only after its hash matches the complete ZIP entry.
 
 ## Android Studio compatibility
 
